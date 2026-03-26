@@ -1,131 +1,183 @@
-import { useState } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Header } from './components/Header'
-
-type Mode = 'encode' | 'decode'
-
-interface SectionState {
-  input: string
-  output: string
-  error: string
-  copied: boolean
-}
-
-function useCopyTimeout() {
-  const [copied, setCopied] = useState(false)
-  const copy = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-  return { copied, copy }
-}
-
-function EncodingSection({
-  title,
-  encode,
-  decode,
-}: {
-  title: string
-  encode: (s: string) => string
-  decode: (s: string) => string
-}) {
-  const [state, setState] = useState<SectionState>({ input: '', output: '', error: '', copied: false })
-  const { copied, copy } = useCopyTimeout()
-
-  const run = (mode: Mode) => {
-    if (!state.input) return
-    try {
-      const output = mode === 'encode' ? encode(state.input) : decode(state.input)
-      setState(s => ({ ...s, output, error: '' }))
-    } catch (e) {
-      setState(s => ({ ...s, output: '', error: (e as Error).message }))
-    }
-  }
-
-  return (
-    <section className="bg-surface-800 border border-surface-700 rounded-lg overflow-hidden">
-      <div className="px-4 py-3 border-b border-surface-700">
-        <h2 className="text-text-primary font-semibold text-sm">{title}</h2>
-      </div>
-      <div className="p-4 flex flex-col gap-3">
-        <textarea
-          className="min-h-[100px] bg-surface-700 border border-surface-600 rounded-md p-3
-                     font-mono text-sm text-text-primary placeholder-text-muted
-                     focus:outline-none focus:ring-1 focus:ring-accent/50 focus:border-accent
-                     resize-none w-full"
-          placeholder="Paste text here…"
-          value={state.input}
-          onChange={e => setState(s => ({ ...s, input: e.target.value, output: '', error: '' }))}
-          spellCheck={false}
-        />
-
-        <div className="flex gap-2">
-          <button
-            onClick={() => run('encode')}
-            disabled={!state.input}
-            className="px-3 py-1.5 rounded-md text-sm font-medium bg-accent hover:bg-accent-hover text-surface-900 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Encode
-          </button>
-          <button
-            onClick={() => run('decode')}
-            disabled={!state.input}
-            className="px-3 py-1.5 rounded-md text-sm font-medium bg-surface-700 hover:bg-surface-600 text-text-primary border border-surface-600 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Decode
-          </button>
-        </div>
-
-        {state.error && (
-          <p className="text-danger text-xs bg-danger/10 border border-danger/30 rounded px-3 py-2">
-            {state.error}
-          </p>
-        )}
-
-        {state.output && (
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between">
-              <span className="text-text-muted text-xs uppercase tracking-wider">Output</span>
-              <button
-                onClick={() => copy(state.output)}
-                className="text-xs text-text-secondary hover:text-accent transition-colors cursor-pointer"
-              >
-                {copied ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-            <div className="bg-surface-700 border border-surface-600 rounded-md p-3 font-mono text-sm text-text-primary break-all">
-              {state.output}
-            </div>
-          </div>
-        )}
-      </div>
-    </section>
-  )
-}
+import { EncodingSelector } from './components/EncodingSelector'
+import { InputPanel } from './components/InputPanel'
+import { ActionBar } from './components/ActionBar'
+import { OutputPanel } from './components/OutputPanel'
+import { DetectionBanner } from './components/DetectionBanner'
+import { ShortcutHints } from './components/ShortcutHints'
+import { useStorage } from './hooks/useStorage'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useCopyToClipboard } from './hooks/useCopyToClipboard'
+import { useAutoDetect } from './hooks/useAutoDetect'
+import { encode, decode } from './lib/encodings'
+import { STORAGE_KEY_ENCODING_TYPE, LARGE_INPUT_THRESHOLD } from './lib/constants'
+import type { EncodingType } from './lib/constants'
 
 export default function App() {
+  const [encodingType, setEncodingType] = useStorage<EncodingType>(STORAGE_KEY_ENCODING_TYPE, 'base64')
+  const [input, setInput] = useState('')
+  const [output, setOutput] = useState('')
+  const [error, setError] = useState('')
+  const [autoMode, setAutoMode] = useStorage<boolean>('encoding-tool-auto', true)
+  const { copied, copy } = useCopyToClipboard()
+  const detectedType = useAutoDetect(input)
+
+  // ─── Auto-transform ───────────────────────────────────────────────────────
+  const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (!autoMode) return
+    if (new Blob([input]).size > LARGE_INPUT_THRESHOLD) return
+
+    if (autoTimerRef.current) clearTimeout(autoTimerRef.current)
+
+    if (!input) {
+      setOutput('')
+      setError('')
+      return
+    }
+
+    autoTimerRef.current = setTimeout(() => {
+      try {
+        setOutput(encode(encodingType, input))
+        setError('')
+      } catch (e) {
+        setError((e as Error).message)
+        setOutput('')
+      }
+    }, 150)
+
+    return () => {
+      if (autoTimerRef.current) clearTimeout(autoTimerRef.current)
+    }
+  }, [input, encodingType, autoMode])
+
+  // ─── Manual actions ───────────────────────────────────────────────────────
+  const handleEncode = useCallback(() => {
+    if (!input) return
+    try {
+      setOutput(encode(encodingType, input))
+      setError('')
+    } catch (e) {
+      setError((e as Error).message)
+      setOutput('')
+    }
+  }, [input, encodingType])
+
+  const handleDecode = useCallback(() => {
+    if (!input) return
+    try {
+      setOutput(decode(encodingType, input))
+      setError('')
+    } catch (e) {
+      setError((e as Error).message)
+      setOutput('')
+    }
+  }, [input, encodingType])
+
+  const handleSwap = useCallback(() => {
+    if (!output) return
+    setInput(output)
+    setOutput('')
+    setError('')
+  }, [output])
+
+  const handleClear = useCallback(() => {
+    setInput('')
+    setOutput('')
+    setError('')
+  }, [])
+
+  const handlePaste = useCallback(() => {
+    navigator.clipboard.readText().then(text => {
+      setInput(text)
+    }).catch(() => {
+      // Clipboard unavailable — silently ignore
+    })
+  }, [])
+
+  const handleCopy = useCallback(() => {
+    copy(output)
+  }, [copy, output])
+
+  const handleDownload = useCallback(() => {
+    if (!output) return
+    const blob = new Blob([output], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'encoded-output.txt'
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [output])
+
+  const handleTypeChange = useCallback((type: EncodingType) => {
+    setEncodingType(type)
+    setOutput('')
+    setError('')
+  }, [setEncodingType])
+
+  useKeyboardShortcuts({
+    onEncode: handleEncode,
+    onDecode: handleDecode,
+    onCopy: handleCopy,
+    onClear: handleClear,
+    onSwap: handleSwap,
+    onTypeChange: handleTypeChange,
+  })
+
+  const isLargeInput = new Blob([input]).size > LARGE_INPUT_THRESHOLD
+
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen bg-surface-900 flex flex-col">
       <Header />
+      <EncodingSelector activeType={encodingType} onTypeChange={handleTypeChange} />
 
-      <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-8 flex flex-col gap-6">
-        <EncodingSection
-          title="Base64"
-          encode={s => btoa(unescape(encodeURIComponent(s)))}
-          decode={s => decodeURIComponent(escape(atob(s)))}
+      <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-6 flex flex-col gap-5">
+        {isLargeInput && (
+          <div className="px-3 py-2 rounded-md bg-warning/10 border border-warning/30 text-warning text-xs">
+            Large input detected (&gt;1 MB) — auto-transform is disabled. Use the buttons below to run manually.
+          </div>
+        )}
+
+        <InputPanel
+          value={input}
+          onChange={setInput}
+          onClear={handleClear}
+          onPaste={handlePaste}
         />
 
-        <EncodingSection
-          title="URL Encoding"
-          encode={s => encodeURIComponent(s)}
-          decode={s => decodeURIComponent(s)}
+        <ActionBar
+          onEncode={handleEncode}
+          onDecode={handleDecode}
+          onSwap={handleSwap}
+          autoMode={autoMode}
+          onAutoModeToggle={() => setAutoMode(!autoMode)}
+          disabled={!input}
         />
 
-        <p className="text-text-muted text-xs text-center">
-          All encoding/decoding happens in-browser — no data is sent to any server
-        </p>
+        <OutputPanel
+          value={output}
+          error={error}
+          onCopy={handleCopy}
+          onDownload={handleDownload}
+          copied={copied}
+        />
+
+        <DetectionBanner
+          detectedType={detectedType}
+          activeType={encodingType}
+          onUse={handleTypeChange}
+        />
+
+        <ShortcutHints />
       </main>
+
+      <footer className="text-center text-xs text-text-muted py-4 border-t border-surface-700">
+        All encoding/decoding happens in-browser — no data is sent to any server
+      </footer>
     </div>
   )
 }
+
