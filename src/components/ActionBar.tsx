@@ -1,3 +1,5 @@
+import { Button } from '@web-tools/ui'
+
 interface Props {
   onEncode: () => void
   onDecode: () => void
@@ -11,31 +13,15 @@ export function ActionBar({ onEncode, onDecode, onSwap, autoMode, onAutoModeTogg
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onEncode}
-          disabled={disabled}
-          className="btn-primary"
-        >
+        <Button variant="primary" onClick={onEncode} disabled={disabled}>
           ← Encode
-        </button>
-        <button
-          type="button"
-          onClick={onSwap}
-          disabled={disabled}
-          className="btn-secondary"
-          title="Swap input ↔ output (⌘⇧S)"
-        >
+        </Button>
+        <Button variant="secondary" onClick={onSwap} disabled={disabled} title="Swap input ↔ output (⌘⇧S)">
           ⇅ Swap
-        </button>
-        <button
-          type="button"
-          onClick={onDecode}
-          disabled={disabled}
-          className="btn-primary"
-        >
+        </Button>
+        <Button variant="primary" onClick={onDecode} disabled={disabled}>
           Decode →
-        </button>
+        </Button>
       </div>
 
       <label className="flex items-center gap-2 cursor-pointer select-none">

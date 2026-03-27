@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { Button } from '@web-tools/ui'
 import { ENCODINGS } from '../lib/constants'
 import type { EncodingType } from '../lib/constants'
 
@@ -22,13 +23,9 @@ export function DetectionBanner({ detectedType, activeType, onUse }: Props) {
       <span className="text-text-secondary">
         ⚡ Detected: likely <span className="text-accent font-medium">{label}</span>
       </span>
-      <button
-        type="button"
-        onClick={handleUse}
-        className="btn-secondary text-xs py-0.5 px-2 shrink-0"
-      >
+      <Button size="sm" variant="secondary" onClick={handleUse} className="shrink-0">
         Use this
-      </button>
+      </Button>
     </div>
   )
 }

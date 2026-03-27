@@ -1,14 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Header } from './components/Header'
+import { AppHeader, ShortcutHints, useStorage, useCopyToClipboard, getPlatformMod, getPlatformShift } from '@web-tools/ui'
 import { EncodingSelector } from './components/EncodingSelector'
 import { InputPanel } from './components/InputPanel'
 import { ActionBar } from './components/ActionBar'
 import { OutputPanel } from './components/OutputPanel'
 import { DetectionBanner } from './components/DetectionBanner'
-import { ShortcutHints } from './components/ShortcutHints'
-import { useStorage } from './hooks/useStorage'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
-import { useCopyToClipboard } from './hooks/useCopyToClipboard'
 import { useAutoDetect } from './hooks/useAutoDetect'
 import { encode, decode } from './lib/encodings'
 import { STORAGE_KEY_ENCODING_TYPE, LARGE_INPUT_THRESHOLD } from './lib/constants'
@@ -20,7 +17,7 @@ export default function App() {
   const [output, setOutput] = useState('')
   const [error, setError] = useState('')
   const [autoMode, setAutoMode] = useStorage<boolean>('encoding-tool-auto', true)
-  const { copied, copy } = useCopyToClipboard()
+  const { copy } = useCopyToClipboard()
   const detectedType = useAutoDetect(input)
 
   // ─── Auto-transform ───────────────────────────────────────────────────────
@@ -131,7 +128,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-surface-900 flex flex-col">
-      <Header />
+      <AppHeader toolName="Encoding Tool" />
       <EncodingSelector activeType={encodingType} onTypeChange={handleTypeChange} />
 
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-6 flex flex-col gap-5">
@@ -160,9 +157,7 @@ export default function App() {
         <OutputPanel
           value={output}
           error={error}
-          onCopy={handleCopy}
           onDownload={handleDownload}
-          copied={copied}
         />
 
         <DetectionBanner
@@ -171,7 +166,16 @@ export default function App() {
           onUse={handleTypeChange}
         />
 
-        <ShortcutHints />
+        <ShortcutHints
+          shortcuts={[
+            { keys: `${getPlatformMod()}1–6`, label: 'switch' },
+            { keys: `${getPlatformMod()}E`, label: 'encode' },
+            { keys: `${getPlatformMod()}D`, label: 'decode' },
+            { keys: `${getPlatformMod()}${getPlatformShift()}C`, label: 'copy' },
+            { keys: `${getPlatformMod()}${getPlatformShift()}S`, label: 'swap' },
+            { keys: `${getPlatformMod()}${getPlatformShift()}X`, label: 'clear' },
+          ]}
+        />
       </main>
 
       <footer className="text-center text-xs text-text-muted py-4 border-t border-surface-700">
